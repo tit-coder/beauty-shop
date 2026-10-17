@@ -1,15 +1,15 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+require_once __DIR__ . '/config.php';
 
 // Bảo vệ trang admin
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+if (!is_logged_in() || !is_admin()) {
     header("Location: login.php");
     exit;
 }
 
-include 'config.php';
-
-// Lấy ID sản phẩm từ URL
 $product_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 if ($product_id <= 0) {
@@ -18,32 +18,45 @@ if ($product_id <= 0) {
 }
 
 try {
-    // Lấy thông tin sản phẩm trước khi xóa (để xóa ảnh)
-    $stmt = $pdo->prepare("SELECT image FROM products WHERE product_id = ?");
+    // Kiểm tra sản phẩm có tồn tại
+    $stmt = $pdo->prepare("SELECT product_name, image FROM products WHERE product_id = ?");
     $stmt->execute([$product_id]);
     $product = $stmt->fetch();
-    
+
     if ($product) {
-        // Xóa sản phẩm khỏi database
-        $delete_stmt = $pdo->prepare("DELETE FROM products WHERE product_id = ?");
-        $delete_stmt->execute([$product_id]);
-        
-        // Xóa ảnh sản phẩm nếu có
-        if (!empty($product['image'])) {
-            $image_path = '../images/products/' . $product['image'];
-            if (file_exists($image_path)) {
-                unlink($image_path);
-            }
+        $product_name = $product['product_name'];
+
+        // Kiểm tra xem sản phẩm đã phát sinh trong đơn hàng chưa (Ràng buộc toàn vẹn)
+        $order_check = $pdo->prepare("SELECT COUNT(*) FROM order_items WHERE product_id = ?");
+        $order_check->execute([$product_id]);
+        $has_orders = $order_check->fetchColumn() > 0;
+
+        if ($has_orders) {
+            // Không xóa cứng nếu đã có đơn hàng -> Thực hiện Soft Delete
+            $pdo->prepare("UPDATE products SET is_active = 0 WHERE product_id = ?")->execute([$product_id]);
+            $_SESSION['success_msg'] = "Sản phẩm '$product_name' đã có lịch sử đơn hàng nên đã được chuyển sang trạng thái ẨN (Soft Delete) để bảo toàn dữ liệu kế toán.";
+        } else {
+            // Xóa cứng an toàn các bảng phụ thuộc
+            $pdo->beginTransaction();
+            $pdo->prepare("DELETE FROM product_skin_types WHERE product_id = ?")->execute([$product_id]);
+            $pdo->prepare("DELETE FROM product_ingredients WHERE product_id = ?")->execute([$product_id]);
+            $pdo->prepare("DELETE FROM product_images WHERE product_id = ?")->execute([$product_id]);
+            $pdo->prepare("DELETE FROM cart_items WHERE product_id = ?")->execute([$product_id]);
+            $pdo->prepare("DELETE FROM wishlists WHERE product_id = ?")->execute([$product_id]);
+            $pdo->prepare("DELETE FROM flash_sale_items WHERE product_id = ?")->execute([$product_id]);
+            $pdo->prepare("DELETE FROM reviews WHERE product_id = ?")->execute([$product_id]);
+            $pdo->prepare("DELETE FROM products WHERE product_id = ?")->execute([$product_id]);
+            $pdo->commit();
+
+            $_SESSION['success_msg'] = "Đã xóa vĩnh viễn sản phẩm '$product_name' khỏi cơ sở dữ liệu!";
         }
-        
-        // Chuyển hướng với thông báo thành công
-        $_SESSION['delete_success'] = 'Đã xóa sản phẩm thành công!';
     }
-    
-} catch (PDOException $e) {
-    $_SESSION['delete_error'] = 'Lỗi khi xóa sản phẩm: ' . $e->getMessage();
+} catch (Exception $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    $_SESSION['error_msg'] = "Lỗi khi xóa sản phẩm: " . $e->getMessage();
 }
 
 header("Location: manage_products.php");
 exit;
-?>

@@ -1,411 +1,453 @@
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+require_once __DIR__ . '/config.php';
+
+$is_logged_in = is_logged_in();
+$username = $_SESSION['username'] ?? '';
+$role = $_SESSION['role'] ?? '';
+$user_id = $_SESSION['user_id'] ?? 0;
+
+// Lấy số lượng giỏ hàng thực tế từ database
+$cart_count = get_cart_count($pdo, $user_id);
+
+// Lấy số lượng yêu thích
+$wishlist_count = 0;
+if ($is_logged_in) {
+    try {
+        $stmt_wl = $pdo->prepare("SELECT COUNT(*) FROM wishlists WHERE user_id = ?");
+        $stmt_wl->execute([$user_id]);
+        $wishlist_count = (int)$stmt_wl->fetchColumn();
+    } catch (Exception $e) {
+        $wishlist_count = 0;
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <title><?= isset($page_title) ? $page_title : 'Beauty Cosmetics - Mỹ phẩm chính hãng' ?></title>
+  <title><?= isset($page_title) ? htmlspecialchars($page_title) : 'BeautyShop - Mỹ Phẩm Chính Hãng & Tư Vấn Da Thông Minh' ?></title>
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@9/swiper-bundle.min.css">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" type="text/css" href="../css/vendor.css">
-  <link rel="stylesheet" type="text/css" href="../css/style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&family=Open+Sans:wght@400;700&display=swap" rel="stylesheet">
+  <meta name="description" content="Hệ thống bán mỹ phẩm chính hãng 100%, tích hợp AI Beauty Advisor tư vấn quy trình chăm sóc da chuẩn chuyên gia da liễu.">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="../images/cosmetics.png">
+
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@9/swiper-bundle.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="../css/cart_styles.css">
+
   <style>
-    /* Line clamp for product names */
-    .line-clamp-2 { 
-      display: -webkit-box; 
-      -webkit-line-clamp: 2; 
-      -webkit-box-orient: vertical; 
-      overflow: hidden; 
+    :root {
+      --primary: #d47a88;
+      --primary-dark: #9e4760;
+      --primary-light: #fbebed;
+      --accent-gold: #c59b27;
+      --text-dark: #2c1820;
+      --text-muted: #705860;
+      --bg-light: #fffdfb;
+      --border-soft: #f0e2e5;
     }
-    
-    /* Product Card Hover Effects */
-    .product-card:hover {
-      transform: translateY(-8px);
-      border-color: #ff0080ff !important;
-      box-shadow: 0 12px 35px rgba(255, 105, 180, 0.3) !important;
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      color: var(--text-dark);
+      background-color: var(--bg-light);
+      overflow-x: hidden;
     }
-    
-    .product-card:hover .product-img-hover {
-      transform: scale(1.08);
+
+    h1, h2, h3, .brand-font {
+      font-family: 'Playfair Display', Georgia, serif;
     }
-    
-    .hover-primary:hover {
-      color: #ff1493 !important;
+
+    /* Header Styling */
+    .top-bar-announcement {
+      background: linear-gradient(90deg, #4a2835 0%, #2f1722 100%);
+      color: #f7dcd6;
+      font-size: 0.8rem;
+      letter-spacing: 0.5px;
     }
-    
-    /* Enhanced Dropdown Menu Styles */
-    .dropdown-menu {
-      border: none !important;
-      border-radius: 12px !important;
-      box-shadow: 0 15px 30px rgba(255, 105, 180, 0.15) !important;
-      padding: 0.8rem !important;
-      min-width: 220px !important;
-      backdrop-filter: blur(15px) !important;
-      background: rgba(255, 255, 255, 0.98) !important;
-      border: 1px solid rgba(255, 105, 180, 0.1) !important;
-      animation: dropdownFadeIn 0.3s ease-out !important;
+
+    .main-navbar-sticky {
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 4px 20px rgba(74, 40, 53, 0.06);
+      transition: all 0.3s ease;
     }
-    
-    @keyframes dropdownFadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(-10px) scale(0.95);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
+
+    .nav-link-custom {
+      color: var(--text-dark) !important;
+      font-weight: 600;
+      font-size: 0.92rem;
+      padding: 0.6rem 0.9rem !important;
+      border-radius: 6px;
+      transition: all 0.25s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
     }
-    
-    .dropdown-item {
-      border-radius: 8px !important;
-      padding: 10px 14px !important;
-      margin-bottom: 4px !important;
-      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
-      font-weight: 500 !important;
-      font-size: 0.9rem !important;
-      position: relative !important;
-      overflow: hidden !important;
+
+    .nav-link-custom:hover {
+      color: var(--primary-dark) !important;
+      background-color: var(--primary-light);
     }
-    
-    .dropdown-item::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(135deg, #ff69b4, #ff1493);
-      transition: left 0.3s ease;
-      z-index: -1;
-    }
-    
-    .dropdown-item:hover::before {
-      left: 0;
-    }
-    
-    .dropdown-item:hover {
+
+    .ai-nav-pill {
+      background: linear-gradient(135deg, #d47a88, #9e4760);
       color: white !important;
-      transform: translateX(8px) scale(1.02) !important;
-      box-shadow: 0 8px 20px rgba(255, 105, 180, 0.3) !important;
+      border-radius: 20px !important;
+      padding: 0.4rem 1rem !important;
+      box-shadow: 0 4px 12px rgba(212, 122, 136, 0.35);
     }
-    
-    .dropdown-item i {
-      width: 22px;
-      text-align: center;
-      font-size: 1.1rem;
-      transition: transform 0.3s ease;
+
+    .ai-nav-pill:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(212, 122, 136, 0.45);
+      background: linear-gradient(135deg, #c06574, #87364d) !important;
+      color: white !important;
     }
-    
-    .dropdown-item:hover i {
-      transform: scale(1.2);
-    }
-    
-    .dropdown-divider {
-      margin: 8px 0 !important;
-      border: none !important;
-      height: 1px !important;
-      background: linear-gradient(90deg, transparent, rgba(255, 105, 180, 0.3), transparent) !important;
-    }
-    
-    /* User Avatar Enhancement */
-    .user-avatar {
+
+    /* Product Card Luxury */
+    .beauty-card {
+      background: white;
+      border: 1px solid var(--border-soft);
+      border-radius: 14px;
+      transition: all 0.35s cubic-bezier(0.165, 0.84, 0.44, 1);
       position: relative;
       overflow: hidden;
-      transition: all 0.3s ease !important;
     }
-    
-    .user-avatar::before {
-      content: '';
+
+    .beauty-card:hover {
+      transform: translateY(-6px);
+      border-color: #e5b3bd;
+      box-shadow: 0 15px 35px rgba(158, 71, 96, 0.12);
+    }
+
+    .beauty-card .img-box {
+      height: 230px;
+      overflow: hidden;
+      background: #faf7f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .beauty-card .img-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.5s ease;
+    }
+
+    .beauty-card:hover .img-box img {
+      transform: scale(1.08);
+    }
+
+    .discount-badge {
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: linear-gradient(45deg, rgba(255,255,255,0.2), transparent);
-      opacity: 0;
-      transition: opacity 0.3s ease;
+      top: 10px;
+      left: 10px;
+      background: #d4223d;
+      color: white;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      z-index: 2;
     }
-    
-    .user-avatar:hover::before {
+
+    .wishlist-heart-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 32px;
+      height: 32px;
+      background: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #999;
+      border: none;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      transition: all 0.2s;
+      z-index: 2;
+    }
+
+    .wishlist-heart-btn:hover, .wishlist-heart-btn.active {
+      color: #d47a88;
+      transform: scale(1.15);
+    }
+
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      min-height: 2.6em;
+    }
+
+    /* Cart Toast */
+    .cart-notification {
+      position: fixed;
+      bottom: 25px;
+      left: 25px;
+      background: white;
+      border-left: 4px solid #28a745;
+      padding: 14px 20px;
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 11000;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s ease;
+    }
+    .cart-notification.show {
+      transform: translateY(0);
       opacity: 1;
     }
-    
-    .user-avatar:hover {
-      transform: scale(1.05) !important;
-      box-shadow: 0 8px 20px rgba(255, 105, 180, 0.4) !important;
-    }
-    
-    /* Welcome Text Enhancement */
-    .welcome-text {
-      background: linear-gradient(135deg, #ff1493, #ff69b4) !important;
-      -webkit-background-clip: text !important;
-      -webkit-text-fill-color: transparent !important;
-      background-clip: text !important;
-      font-weight: 700 !important;
-    }
-    
-    /* Admin Badge */
-    .admin-badge {
-      background: linear-gradient(135deg, #dc3545, #ff6b6b) !important;
-      color: white !important;
-      border-radius: 8px !important;
-      padding: 2px 8px !important;
-      font-size: 0.7rem !important;
-      font-weight: 600 !important;
-      margin-left: 8px !important;
-      text-transform: uppercase !important;
-      letter-spacing: 0.5px !important;
-    }
-    
-    /* Logout Button Special Style */
-    .logout-item {
-      background: linear-gradient(135deg, rgba(220, 53, 69, 0.1), rgba(255, 107, 107, 0.1)) !important;
-      border: 1px solid rgba(220, 53, 69, 0.2) !important;
-    }
-    
-    .logout-item::before {
-      background: linear-gradient(135deg, #dc3545, #ff6b6b) !important;
-    }
-    
-    /* Enhanced Cart Icon */
-    .cart-icon a:hover {
-      background: rgba(255, 105, 180, 0.1) !important;
-      transform: scale(1.1) !important;
-      box-shadow: 0 8px 20px rgba(255, 105, 180, 0.3) !important;
-    }
-    
-    .cart-icon a:hover i {
-      color: #fc1490ff !important;
-      transform: scale(1.1) !important;
-    }
-    
-    /* Search Button Enhancement */
-    .search-btn {
-      transition: all 0.3s ease !important;
-    }
-    
-    .search-btn:hover {
-      transform: scale(1.05) !important;
-      box-shadow: 0 6px 15px rgba(255, 105, 180, 0.4) !important;
-    }
-    
-    /* Responsive adjustments */
-    @media (max-width: 768px) {
-      .product-card img { height: 200px !important; }
-      .dropdown-menu {
-        min-width: 200px !important;
-        padding: 0.7rem !important;
-      }
-      .dropdown-item {
-        padding: 8px 12px !important;
-        font-size: 0.85rem !important;
-      }
+    .cart-notification.error {
+      border-left-color: #dc3545;
     }
   </style>
 </head>
 <body>
-    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
-      <defs>
-        <symbol xmlns="http://www.w3.org/2000/svg" id="link" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M12 19a1 1 0 1 0-1-1a1 1 0 0 0 1 1Zm5 0a1 1 0 1 0-1-1a1 1 0 0 0 1 1Zm0-4a1 1 0 1 0-1-1a1 1 0 0 0 1 1Zm-5 0a1 1 0 1 0-1-1a1 1 0 0 0 1 1Zm7-12h-1V2a1 1 0 0 0-2 0v1H8V2a1 1 0 0 0-2 0v1H5a3 3 0 0 0-3 3v14a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3V6a3 3 0 0 0-3-3Zm1 17a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9h16Zm0-11H4V6a1 1 0 0 1 1-1h1v1a1 1 0 0 0 2 0V5h8v1a1 1 0 0 0 2 0V5h1a1 1 0 0 1 1 1ZM7 15a1 1 0 1 0-1-1a1 1 0 0 0 1 1Zm0 4a1 1 0 1 0-1-1a1 1 0 0 0 1 1Z"/>
-        </symbol>
-        <symbol xmlns="http://www.w3.org/2000/svg" id="arrow-right" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M17.92 11.62a1 1 0 0 0-.21-.33l-5-5a1 1 0 0 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1 1 0 0 0 0 1.42a1 1 0 0 0 1.42 0l5-5a1 1 0 0 0 .21-.33a1 1 0 0 0 0-.76Z"/>
-        </symbol>
-        <symbol xmlns="http://www.w3.org/2000/svg" id="category" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M19 5.5h-6.28l-.32-1a3 3 0 0 0-2.84-2H5a3 3 0 0 0-3 3v13a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-10a3 3 0 0 0-3-3Zm1 13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1h4.56a1 1 0 0 1 .95.68l.54 1.64a1 1 0 0 0 .95.68h7a1 1 0 0 1 1 1Z"/>
-        </symbol>
-        <symbol xmlns="http://www.w3.org/2000/svg" id="calendar" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M19 4h-2V3a1 1 0 0 0-2 0v1H9V3a1 1 0 0 0-2 0v1H5a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3Zm1 15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-7h16Zm0-9H4V7a1 1 0 0 1 1-1h2v1a1 1 0 0 0 2 0V6h6v1a1 1 0 0 0 2 0V6h2a1 1 0 0 1 1 1Z"/>
-        </symbol>
-        <symbol xmlns="http://www.w3.org/2000/svg" id="logout" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M20.16 4.61A6.27 6.27 0 0 0 12 4a6.27 6.27 0 0 0-8.16 9.48l7.45 7.45a1 1 0 0 0 1.42 0l7.45-7.45a6.27 6.27 0 0 0 0-8.87Zm-1.41 7.46L12 18.81l-6.75-6.74a4.28 4.28 0 0 1 3-7.3a4.25 4.25 0 0 1 3 1.25a1 1 0 0 0 1.42 0a4.27 4.27 0 0 1 6 6.05Z"/>
-        </symbol>
-        <symbol xmlns="http://www.w3.org/2000/svg" id="plus" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M19 11h-6V5a1 1 0 0 0-2 0v6H5a1 1 0 0 0 0 2h6v6a1 1 0 0 0 2 0v-6h6a1 1 0 0 0 0-2Z"/>
-        </symbol>
-        <symbol xmlns="http://www.w3.org/2000/svg" id="minus" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M19 11H5a1 1 0 0 0 0 2h14a1 1 0 0 0 0-2Z"/>
-        </symbol>
-        <symbol xmlns="http://www.w3.org/2000/svg" id="cart" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M8.5 19a1.5 1.5 0 1 0 1.5 1.5A1.5 1.5 0 0 0 8.5 19ZM19 16H7a1 1 0 0 1 0-2h8.491a3.013 3.013 0 0 0 2.885-2.176l1.585-5.55A1 1 0 0 0 19 5H6.74a3.007 3.007 0 0 0-2.82-2H3a1 1 0 0 0 0 2h.921a1.005 1.005 0 0 1 .962.725l.155.545v.005l1.641 5.742A3 3 0 0 0 7 18h12a1 1 0 0 0 0-2Zm-1.326-9l-1.22 4.274a1.005 1.005 0 0 1-.963.726H8.754l-.255-.892L7.326 7ZM16.5 19a1.5 1.5 0 1 0 1.5 1.5a1.5 1.5 0 0 0-1.5-1.5Z"/>
-        </symbol>
-        <symbol xmlns="http://www.w3.org/2000/svg" id="check" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M18.71 7.21a1 1 0 0 0-1.42 0l-7.45 7.46l-3.13-3.14A1 1 0 1 0 5.29 13l3.84 3.84a1 1 0 0 0 1.42 0l8.16-8.16a1 1 0 0 0 0-1.47Z"/>
-        </symbol>
-        <symbol xmlns="http://www.w3.org/2000/svg" id="trash" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M10 18a1 1 0 0 0 1-1v-6a1 1 0 0 0-2 0v6a1 1 0 0 0 1 1ZM20 6h-4V5a3 3 0 0 0-3-3h-2a3 3 0 0 0-3 3v1H4a1 1 0 0 0 0 2h1v11a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3V8h1a1 1 0 0 0 0-2ZM10 5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1h-4Zm7 14a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V8h10Zm-3-1a1 1 0 0 0 1-1v-6a1 1 0 0 0-2 0v6a1 1 0 0 0 1 1Z"/>
-        </symbol>
-        <symbol xmlns="http://www.w3.org/2000/svg" id="star-outline" viewBox="0 0 15 15">
-          <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M7.5 9.804L5.337 11l.413-2.533L4 6.674l2.418-.37L7.5 4l1.082 2.304l2.418.37l-1.75 1.793L9.663 11L7.5 9.804Z"/>
-        </symbol>
-        <symbol xmlns="http://www.w3.org/2000/svg" id="star-solid" viewBox="0 0 15 15">
-          <path fill="currentColor" d="M7.953 3.788a.5.5 0 0 0-.906 0L6.08 5.85l-2.154.33a.5.5 0 0 0-.283.843l1.574 1.613l-.373 2.284a.5.5 0 0 0 .736.518l1.92-1.063l1.921 1.063a.5.5 0 0 0 .736-.519l-.373-2.283l1.574-1.613a.5.5 0 0 0-.283-.844L8.921 5.85l-.968-2.062Z"/>
-        </symbol>
-        <symbol xmlns="http://www.w3.org/2000/svg" id="search" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M21.71 20.29L18 16.61A9 9 0 1 0 16.61 18l3.68 3.68a1 1 0 0 0 1.42 0a1 1 0 0 0 0-1.39ZM11 18a7 7 0 1 1 7-7a7 7 0 0 1-7 7Z"/>
-        </symbol>
-        <symbol xmlns="http://www.w3.org/2000/svg" id="user" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M15.71 12.71a6 6 0 1 0-7.42 0a10 10 0 0 0-6.22 8.18a1 1 0 0 0 2 .22a8 8 0 0 1 15.9 0a1 1 0 0 0 1 .89h.11a1 1 0 0 0 .88-1.1a10 10 0 0 0-6.25-8.19ZM12 12a4 4 0 1 1 4-4a4 4 0 0 1-4 4Z"/>
-        </symbol>
-        <symbol xmlns="http://www.w3.org/2000/svg" id="close" viewBox="0 0 15 15">
-          <path fill="currentColor" d="M7.953 3.788a.5.5 0 0 0-.906 0L6.08 5.85l-2.154.33a.5.5 0 0 0-.283.843l1.574 1.613l-.373 2.284a.5.5 0 0 0 .736.518l1.92-1.063l1.921 1.063a.5.5 0 0 0 .736-.519l-.373-2.283l1.574-1.613a.5.5 0 0 0-.283-.844L8.921 5.85l-.968-2.062Z"/>
-        </symbol>
-      </defs>
-    </svg>
 
-    <div class="preloader-wrapper">
-      <div class="preloader">
-      </div>
-    </div>
-    
-    <div class="offcanvas offcanvas-end" data-bs-scroll="true" tabindex="-1" id="offcanvasSearch" aria-labelledby="Search">
-      <div class="offcanvas-header justify-content-center">
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-      </div>
-      <div class="offcanvas-body">
-        <div class="order-md-last">
-          <h4 class="d-flex justify-content-between align-items-center mb-3">
-            <span class="text-primary">Search</span>
-          </h4>
-          <form role="search" action="index.html" method="get" class="d-flex mt-3 gap-0">
-            <input class="form-control rounded-start rounded-0 bg-light" type="email" placeholder="What are you looking for?" aria-label="What are you looking for?">
-            <button class="btn btn-dark rounded-end rounded-0" type="submit">Search</button>
-          </form>
+<!-- Header Cố Định -->
+<header class="fixed-top" style="z-index: 1030;">
+  
+  <!-- Thanh Thông Báo Khuyến Mãi Trên Cùng -->
+  <div class="top-bar-announcement py-1 px-3 d-none d-md-block">
+    <div class="container-fluid px-lg-5">
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-3">
+          <span><i class="bi bi-truck me-1"></i> Miễn phí vận chuyển cho đơn từ 150.000₫ (Mã: <strong>FREESHIP</strong>)</span>
+          <span>•</span>
+          <span><i class="bi bi-shield-check me-1"></i> Cam kết 100% chính hãng – Hoàn tiền gấp đôi nếu phát hiện hàng giả</span>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+          <a href="tel:19001234" class="text-decoration-none text-white-50 hover-white">
+            <i class="bi bi-telephone me-1"></i> Hotline: 1900 1234
+          </a>
+          <span>•</span>
+          <a href="routine_builder.php" class="text-decoration-none text-warning fw-semibold">
+            <i class="bi bi-magic me-1"></i> Trắc nghiệm Routine da
+          </a>
         </div>
       </div>
     </div>
+  </div>
 
-<!-- HEADER GỌN HỚN VÀ ĐẸP HƠN -->
-<header class="fixed-top" style="background:white; z-index:1000;">
-  <!-- PHẦN TRÊN: LOGO + TÌM KIẾM + USER -->
-  <div class="container-fluid" style="background:white; padding:8px 0; border-bottom:1px solid #ffe4f4;">
-    <div class="row align-items-center" style="min-height:70px;">
-      <!-- Logo -->
-      <div class="col-5 col-sm-4 col-lg-2 text-center text-sm-start" style="padding-left: 100px;">
-        <a href="index.php">
-          <img src="../images/logo-be.png" alt="Beauty Cosmetics" class="img-fluid" style="height: 100px;">
-        </a>
-      </div>
-      <!-- Thanh tìm kiếm -->
-      <div class="col-12 col-lg-6 mt-2 mt-lg-0">
-        <form action="index.php" method="get" class="d-flex position-relative">
-          <input type="text" name="q" class="form-control rounded-pill shadow-sm"
-                 placeholder="Tìm son, kem dưỡng, nước hoa..."
-                 style="height:45px; border:2px solid #ffecf4; padding-right:55px; font-size:0.95rem;">
-          <button type="submit" class="btn position-absolute search-btn"
-                  style="right:5px; top:50%; transform:translateY(-50%); background:linear-gradient(135deg,#ff69b4,#ff1493); color:white; width:38px; height:38px; border-radius:50%; border:none; box-shadow: 0 4px 12px rgba(255,105,180,0.3);">
-            <i class="bi bi-search"></i>
-          </button>
-        </form>
-      </div>
-      <!-- User + Giỏ hàng -->
-      <div class="col-7 col-sm-8 col-lg-4 d-flex justify-content-end align-items-center gap-2 gap-lg-3" style="padding-right: 100px;">
-        <ul class="list-unstyled d-flex align-items-center m-0 gap-2">
+  <!-- Thanh Chính: Logo + Tìm Kiếm + Tài Khoản + Giỏ Hàng -->
+  <div class="main-navbar-sticky py-2 px-3 border-bottom">
+    <div class="container-fluid px-lg-5">
+      <div class="row align-items-center">
+        
+        <!-- Logo Thương Hiệu -->
+        <div class="col-6 col-lg-2">
+          <a href="index.php" class="d-flex align-items-center text-decoration-none gap-2">
+            <div class="rounded-circle d-flex align-items-center justify-content-center text-white"
+                 style="width: 42px; height: 42px; background: linear-gradient(135deg, #d47a88, #9e4760);">
+              <i class="bi bi-flower1 fs-4"></i>
+            </div>
+            <div>
+              <span class="fs-4 fw-bold text-dark tracking-wide" style="font-family: 'Playfair Display', serif; letter-spacing: 0.5px;">BEAUTYSHOP</span>
+              <div class="text-uppercase" style="font-size: 0.6rem; letter-spacing: 1.5px; color: #9e4760; font-weight: 600;">Authentic & AI</div>
+            </div>
+          </a>
+        </div>
+
+        <!-- Thanh Tìm Kiếm Trung Tâm -->
+        <div class="col-12 col-lg-6 order-3 order-lg-2 mt-2 mt-lg-0">
+          <form action="search.php" method="GET" class="position-relative">
+            <div class="input-group">
+              <input type="text" name="q" class="form-control rounded-pill px-4 border" 
+                     placeholder="Tìm son môi, kem dưỡng B5, kem chống nắng, toner..."
+                     value="<?= isset($_GET['q']) ? htmlspecialchars($_GET['q']) : '' ?>"
+                     style="height: 44px; padding-right: 50px; border-color: #eedde0; font-size: 0.92rem; background: #fffdfb;">
+              <button type="submit" class="btn position-absolute end-0 top-50 translate-middle-y me-1 rounded-circle d-flex align-items-center justify-content-center text-white border-0 shadow-xs"
+                      style="width: 36px; height: 36px; background: linear-gradient(135deg, #d47a88, #9e4760); z-index: 5;">
+                <i class="bi bi-search" style="font-size: 0.85rem;"></i>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Cụm Biểu Tượng Tiện Ích: Yêu Thích + Giỏ Hàng + Tài Khoản -->
+        <div class="col-6 col-lg-4 order-2 order-lg-3 d-flex justify-content-end align-items-center gap-3">
+          
+          <!-- Danh sách yêu thích -->
+          <a href="wishlist.php" class="btn btn-light rounded-circle position-relative p-0 d-none d-sm-flex align-items-center justify-content-center border"
+             style="width: 40px; height: 40px;" title="Sản phẩm yêu thích">
+            <i class="bi bi-heart text-danger fs-5"></i>
+            <?php if ($wishlist_count > 0): ?>
+              <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem;">
+                <?= $wishlist_count ?>
+              </span>
+            <?php endif; ?>
+          </a>
+
+          <!-- Giỏ hàng -->
+          <a href="cart.php" class="btn btn-light rounded-circle position-relative p-0 d-flex align-items-center justify-content-center border"
+             style="width: 40px; height: 40px;" title="Giỏ hàng của bạn">
+            <i class="bi bi-bag-heart-fill fs-5" style="color: #d47a88;"></i>
+            <span class="cart-count position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
+                  style="font-size: 0.65rem; display: <?= $cart_count > 0 ? 'inline-block' : 'none' ?>;">
+              <?= $cart_count ?>
+            </span>
+          </a>
+
+          <!-- Tài khoản người dùng -->
           <?php if ($is_logged_in): ?>
-            <li class="dropdown">
+            <div class="dropdown">
               <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
-                <div class="user-avatar rounded-circle d-flex align-items-center justify-content-center"
-                     style="width:45px; height:45px; background:linear-gradient(135deg,#ff69b4,#ff1493); border:3px solid rgba(255,255,255,0.8); box-shadow: 0 4px 15px rgba(255,105,180,0.3);">
-                  <i class="bi bi-person-fill text-white fs-5"></i>
+                <div class="rounded-circle d-flex align-items-center justify-content-center text-white"
+                     style="width: 40px; height: 40px; background: linear-gradient(135deg, #d47a88, #9e4760); border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                  <i class="bi bi-person-fill fs-5"></i>
                 </div>
-                <div class="ms-2 d-none d-xl-block">
-                  <div style="font-size:0.75rem; color:#666; font-weight:500;">Xin chào</div>
-                  <div style="font-size:0.9rem; font-weight:700; color:#ff1493;"><?= htmlspecialchars($username) ?></div>
+                <div class="ms-2 d-none d-xl-block text-start">
+                  <div class="text-muted" style="font-size: 0.72rem; line-height: 1;">Xin chào</div>
+                  <div class="fw-bold text-truncate" style="max-width: 110px; font-size: 0.88rem; color: #9e4760;">
+                    <?= htmlspecialchars($username) ?>
+                  </div>
                 </div>
               </a>
-              <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 mt-2">
-                <li>
-                  <div class="dropdown-item-text text-center mb-1">
-                    <div class="d-flex align-items-center gap-2">
-                      <div class="rounded-circle d-flex align-items-center justify-content-center"
-                           style="width:32px; height:32px; background:linear-gradient(135deg,#ff69b4,#ff1493);">
-                        <i class="bi bi-person-fill text-white" style="font-size:0.9rem;"></i>
-                      </div>
-                      <div class="text-start">
-                        <div class="welcome-text" style="font-size:0.85rem;">Xin chào!</div>
-                        <div class="fw-bold text-dark" style="font-size:0.9rem;"><?= htmlspecialchars($username) ?></div>
-                      </div>
-                    </div>
-                  </div>
+              <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-4 mt-2 p-2" style="min-width: 210px;">
+                <li class="px-3 py-2 border-bottom mb-1">
+                  <div class="fw-bold" style="color: #4a2835;"><?= htmlspecialchars($username) ?></div>
+                  <small class="badge bg-secondary"><?= $role === 'admin' ? 'Quản trị viên' : 'Khách hàng thân thiết' ?></small>
                 </li>
-                
                 <?php if ($role === 'admin'): ?>
                   <li>
-                    <a class="dropdown-item" href="admin_dashboard.php">
-                      <i class="bi bi-shield-lock me-2"></i> 
-                      Quản trị viên
-                      <span class="admin-badge">Admin</span>
+                    <a class="dropdown-item py-2 rounded-2 fw-semibold text-danger" href="admin_dashboard.php">
+                      <i class="bi bi-speedometer2 me-2"></i> Trang Quản Trị Admin
                     </a>
                   </li>
+                  <li><hr class="dropdown-divider"></li>
                 <?php endif; ?>
-                
                 <li>
-                  <a class="dropdown-item" href="my_orders.php">
-                    <i class="bi bi-bag-check me-2"></i> Đơn hàng của tôi
+                  <a class="dropdown-item py-2 rounded-2" href="my_orders.php">
+                    <i class="bi bi-bag-check me-2 text-danger"></i> Đơn hàng của tôi
                   </a>
                 </li>
-                
-                <li><hr class="dropdown-divider"></li>
-                
                 <li>
-                  <a class="dropdown-item logout-item" href="?logout=1">
+                  <a class="dropdown-item py-2 rounded-2" href="wishlist.php">
+                    <i class="bi bi-heart me-2 text-danger"></i> Danh sách yêu thích
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item py-2 rounded-2" href="profile.php">
+                    <i class="bi bi-person-gear me-2 text-danger"></i> Tài khoản & Địa chỉ
+                  </a>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                  <a class="dropdown-item py-2 rounded-2 text-danger" href="index.php?logout=1">
                     <i class="bi bi-box-arrow-right me-2"></i> Đăng xuất
                   </a>
                 </li>
               </ul>
-            </li>
+            </div>
           <?php else: ?>
-            <li>
-              <a href="login.php" class="rounded-circle d-flex align-items-center justify-content-center text-white"
-                 style="width:42px; height:42px; background:linear-gradient(135deg,#ff69b4,#ff1493);">
-                <i class="bi bi-person fs-5"></i>
+            <div class="d-flex align-items-center gap-1">
+              <a href="login.php" class="btn btn-outline-danger btn-sm rounded-pill px-3 py-1" style="border-color: #d47a88; color: #d47a88;">
+                Đăng nhập
               </a>
-            </li>
-          <?php endif; ?>
-          <li class="d-none d-lg-block">
-            <div class="cart-icon">
-              <a href="cart.php" class="border-0 bg-transparent position-relative text-decoration-none d-flex align-items-center justify-content-center rounded-circle"
-                 style="width:45px; height:45px; transition: all 0.3s ease;">
-                <i class="bi bi-bag-heart-fill fs-4" style="color:#ff69b4; transition: all 0.3s ease;"></i>
-                <span class="cart-count badge rounded-pill position-absolute" 
-                      style="top:-6px; right:-10px; font-size:0.7rem; font-weight:900; color:#fff; background:#ff0a23ff; display:none; box-shadow: 0 2px 8px rgba(236, 17, 38, 0.9);">0</span>
+              <a href="register.php" class="btn btn-danger btn-sm rounded-pill px-3 py-1 text-white d-none d-sm-inline-block" style="background: #d47a88; border-color: #d47a88;">
+                Đăng ký
               </a>
             </div>
-          </li>
-          <li class="d-lg-none"><a href="#" data-bs-toggle="offcanvas" data-bs-target="#offcanvasCart"><i class="bi bi-bag-heart-fill fs-4 text-dark"></i></a></li>
-          <li class="d-lg-none"><a href="#" data-bs-toggle="offcanvas" data-bs-target="#offcanvasSearch"><i class="bi bi-search fs-4 text-dark"></i></a></li>
-        </ul>
+          <?php endif; ?>
+
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- THANH MENU DÍNH -->
-  <div style="background: linear-gradient(135deg,#ff69b4,#ff1493); box-shadow: 0 4px 15px rgba(255,105,180,0.4);">
-    <div class="container-fluid">
-      <nav class="navbar navbar-expand-lg py-2">
-        <button class="navbar-toggler border-0 text-white" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasNavbar">
-          <i class="bi bi-list fs-2"></i>
-        </button>
-        <div class="collapse navbar-collapse">
-          <ul class="navbar-nav mx-auto text-center gap-3 text-white fw-600" style="font-size:1.05rem;">
-            <li class="nav-item"><a href="index.php" class="nav-link text-white">TRANG CHỦ</a></li>
-            <li class="nav-item"><a href="index.php#category-section" class="nav-link text-white">DANH MỤC</a></li>
-            <li class="nav-item"><a href="index.php#products-section" class="nav-link text-white">SẢN PHẨM</a></li>
-            <li class="nav-item"><a href="my_orders.php" class="nav-link text-white">ĐƠN HÀNG</a></li>
-            <li class="nav-item"><a href="index.php#lienhe" class="nav-link text-white">LIÊN HỆ</a></li>
-            <?php if ($role === 'admin'): ?>
-              <li class="nav-item"><a href="admin_dashboard.php" class="nav-link text-warning fw-bold">QUẢN LÝ</a></li>
-            <?php endif; ?>
-          </ul>
+  <!-- Thanh Menu Điều Hướng Chính -->
+  <div class="border-bottom bg-white d-none d-lg-block">
+    <div class="container-fluid px-lg-5">
+      <nav class="d-flex align-items-center justify-content-between py-1">
+        <ul class="nav gap-1 m-0 align-items-center">
+          <li class="nav-item">
+            <a href="index.php" class="nav-link-custom">
+              <i class="bi bi-house"></i> Trang chủ
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="products.php" class="nav-link-custom">
+              <i class="bi bi-grid"></i> Tất cả sản phẩm
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="index.php#category-section" class="nav-link-custom">
+              <i class="bi bi-collection"></i> Danh mục
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="index.php#flash-sale-section" class="nav-link-custom text-danger">
+              <i class="bi bi-lightning-charge-fill text-warning"></i> Flash Sale
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="routine_builder.php" class="nav-link-custom">
+              <i class="bi bi-magic"></i> Routine Builder
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="compare.php" class="nav-link-custom">
+              <i class="bi bi-columns-gap"></i> So sánh sản phẩm
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="my_orders.php" class="nav-link-custom">
+              <i class="bi bi-truck"></i> Tra cứu đơn hàng
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="#lienhe" class="nav-link-custom">
+              <i class="bi bi-geo-alt"></i> Cửa hàng
+            </a>
+          </li>
+        </ul>
+
+        <!-- Nút Trợ Lý AI Nổi Bật Trên Menu -->
+        <div class="py-1">
+          <a href="ai_advisor.php" class="ai-nav-pill text-decoration-none d-inline-flex align-items-center gap-2">
+            <i class="bi bi-stars"></i>
+            <span>AI Beauty Advisor</span>
+            <span class="badge bg-white text-danger rounded-pill" style="font-size: 0.65rem;">HOT</span>
+          </a>
         </div>
       </nav>
     </div>
   </div>
+
+  <!-- Thanh Menu Cho Mobile -->
+  <div class="d-lg-none bg-white border-bottom px-3 py-2 overflow-x-auto text-nowrap">
+    <div class="d-flex gap-2">
+      <a href="index.php" class="btn btn-sm btn-light rounded-pill px-3">Trang chủ</a>
+      <a href="products.php" class="btn btn-sm btn-light rounded-pill px-3">Sản phẩm</a>
+      <a href="ai_advisor.php" class="btn btn-sm btn-danger rounded-pill px-3 text-white" style="background:#d47a88; border:none;">
+        <i class="bi bi-stars"></i> AI Advisor
+      </a>
+      <a href="index.php#flash-sale-section" class="btn btn-sm btn-outline-danger rounded-pill px-3">Flash Sale</a>
+      <a href="routine_builder.php" class="btn btn-sm btn-light rounded-pill px-3">Routine</a>
+      <a href="my_orders.php" class="btn btn-sm btn-light rounded-pill px-3">Đơn hàng</a>
+    </div>
+  </div>
+
 </header>

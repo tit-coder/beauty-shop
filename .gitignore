@@ -1,0 +1,15 @@
+# Environment files (Chứa secret key, mật khẩu database)
+.env
+.env.local
+
+# IDE & OS files
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Temporary logs & uploads
+*.log
+uploads/temp/
+
