@@ -1,0 +1,101 @@
+/* Thông báo giỏ hàng */
+.cart-notification {
+    position: fixed;
+    top: 20px;
+    right: -400px;
+    background: white;
+    padding: 15px 25px;
+    border-radius: 10px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    z-index: 9999;
+    transition: right 0.3s ease;
+    min-width: 300px;
+}
+
+.cart-notification.show {
+    right: 20px;
+}
+
+.cart-notification.success {
+    border-left: 4px solid #28a745;
+}
+
+.cart-notification.success i {
+    color: #28a745;
+    font-size: 24px;
+}
+
+.cart-notification.error {
+    border-left: 4px solid #dc3545;
+}
+
+.cart-notification.error i {
+    color: #dc3545;
+    font-size: 24px;
+}
+
+/* Icon giỏ hàng */
+.cart-icon {
+    position: relative;
+    display: inline-block;
+}
+
+.cart-count {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #e3245d;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+/* Nút thêm vào giỏ */
+.btn-add-to-cart {
+    background: #e3245d;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-add-to-cart:hover {
+    background: #ff6da5ff;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(227, 36, 93, 0.3);
+}
+
+.btn-add-to-cart:active {
+    transform: translateY(0);
+}
+
+.btn-add-to-cart i {
+    font-size: 16px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .cart-notification {
+        min-width: 250px;
+        right: -350px;
+    }
+    
+    .cart-notification.show {
+        right: 10px;
+    }
+}
